@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"math"
 	"net/http"
+	"os/exec"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/database"
@@ -117,4 +121,50 @@ func (cfg *apiConfig) handlerVideosRetrieve(w http.ResponseWriter, r *http.Reque
 	}
 
 	respondWithJSON(w, http.StatusOK, videos)
+}
+
+func getVideoAspectRatio(filePath string) (string, error) {
+	var outBuf bytes.Buffer
+
+	cmd := exec.Command("ffprobe", "-v", "error", "-print_format", "json", "-show_streams", filePath)
+
+	cmd.Stdout = &outBuf
+
+	err := cmd.Run()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return "", err
+	}
+
+	var parsed struct {
+		Streams []struct {
+			CodedWidth  int `json:"coded_width"`
+			CodedHeight int `json:"coded_height"`
+		} `json:"streams"`
+	}
+
+	if err = json.Unmarshal(outBuf.Bytes(), &parsed); err != nil {
+		fmt.Println("Error unmarshaling:", err)
+		return "", err
+	}
+
+	width := float64(parsed.Streams[0].CodedWidth)
+	height := float64(parsed.Streams[0].CodedHeight)
+	ratio := width / height
+
+	fmt.Printf("Width: %.0f, Height: %.0f, Ratio: %.4f\n", width, height, ratio)
+
+	const tolerance = 0.02
+
+	isClose := func(a, b float64) bool {
+		return math.Abs(a-b) <= b*tolerance
+	}
+
+	if isClose(ratio, 16.0/9.0) {
+		return "landscape", nil
+	} else if isClose(ratio, 9.0/16.0) {
+		return "portrait", nil
+	} else {
+		return "other", nil
+	}
 }
