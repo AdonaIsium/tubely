@@ -152,8 +152,6 @@ func getVideoAspectRatio(filePath string) (string, error) {
 	height := float64(parsed.Streams[0].CodedHeight)
 	ratio := width / height
 
-	fmt.Printf("Width: %.0f, Height: %.0f, Ratio: %.4f\n", width, height, ratio)
-
 	const tolerance = 0.02
 
 	isClose := func(a, b float64) bool {
@@ -167,4 +165,16 @@ func getVideoAspectRatio(filePath string) (string, error) {
 	} else {
 		return "other", nil
 	}
+}
+
+func processVideoForFastStart(filePath string) (string, error) {
+	outputFilePath := filePath + ".processing"
+
+	cmd := exec.Command("ffmpeg", "-i", filePath, "-c", "copy", "-movflags", "faststart", "-f", "mp4", outputFilePath)
+
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+	return outputFilePath, err
 }
